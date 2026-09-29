@@ -1,0 +1,44 @@
+# Builds LiveDub for Windows and macOS (Apple Silicon) on every "v*" tag or by hand
+# (Actions tab -> build -> Run workflow). Download the zips from the run's Artifacts.
+name: build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements-build.txt
+
+      - name: Offline engine tests
+        run: python tests/mock_engines.py
+
+      - name: Build
+        run: pyinstaller livedub.spec --noconfirm
+
+      - name: Zip (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path dist/LiveDub -DestinationPath LiveDub-Windows.zip
+
+      - name: Zip (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent dist/LiveDub.app LiveDub-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiveDub-${{ runner.os }}
+          path: LiveDub-*.zip
