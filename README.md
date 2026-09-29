@@ -96,12 +96,21 @@ tekrarlar. Bu yüzden `Sistem sesi: <cihaz>` kaynağı çıkışla aynı cihazsa
 
 ### 2) macOS'ta sistem sesi dublajı
 
-macOS, uygulamaların sistem sesini doğrudan yakalamasına izin vermez; ücretsiz sanal sürücü gerekir:
-1. [BlackHole 2ch](https://existential.audio/blackhole/) kurun (`brew install blackhole-2ch`).
-2. *Ses ayarları*'nda çıkışı **BlackHole 2ch** yapın (ya da yalnızca oynatıcı uygulamanın çıkışını).
-3. LiveDub'da Kaynak = `Sanal kablo: BlackHole 2ch`, Çıkış = **MacBook hoparlörü / kulaklık**
-   (Multi-Output cihazı seçmeyin; dublaj tekrar BlackHole'a girer).
-4. Orijinali de duymak için **Orijinal ses** kaydırıcısını kullanın.
+macOS, uygulamaların sistem sesini doğrudan yakalamasına izin vermez; ücretsiz bir sanal kablo gerekir:
+1. [BlackHole 2ch](https://existential.audio/blackhole/) kurun (`brew install blackhole-2ch`) ve Mac'i yeniden başlatın.
+2. **Sistem Ayarları › Ses › Çıkış** bölümünde **BlackHole 2ch**'i seçin. Bu adım şart: kurmak tek başına
+   yetmez, sistem sesi bu kabloya gitmezse LiveDub'a hiç ses gelmez.
+3. LiveDub'da Kaynak = `Sanal kablo: BlackHole 2ch`. Çıkış = **MacBook hoparlörü / kulaklık**. Çıkışı
+   "Varsayılan" bırakırsanız ve varsayılan BlackHole ise LiveDub dublajı otomatik olarak gerçek hoparlöre
+   ya da kulaklığa yönlendirir. Multi-Output cihazı seçmeyin; dublaj tekrar BlackHole'a girer.
+4. **Orijinal ses** kaydırıcısı: %0 = yalnızca dublaj, yükseltirseniz orijinali de duyarsınız.
+5. İlk başlatmada macOS mikrofon izni ister. BlackHole da bir "mikrofon" sayılır, izin vermeniz gerekir.
+   Reddettiyseniz: **Sistem Ayarları › Gizlilik ve Güvenlik › Mikrofon › LiveDub**'ı açıp uygulamayı yeniden
+   başlatın.
+
+İşiniz bitince Mac'in çıkışını tekrar hoparlöre ya da kulaklığa alın. Birkaç saniye hiç ses gelmezse
+LiveDub nedenini arayüzde yazar (izin kapalı, kabloya ses gitmiyor vb.). Terminalde
+`/Applications/LiveDub.app/Contents/MacOS/LiveDub --diagnose` izin durumunu ve cihazları gösterir.
 
 ### 3) Mikrofon → toplantıda çevrilmiş sesiniz (Zoom, Meet, Discord, Teams)
 

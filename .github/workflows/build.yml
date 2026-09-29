@@ -41,6 +41,15 @@ jobs:
         if: runner.os == 'macOS'
         run: ./dist/LiveDub.app/Contents/MacOS/LiveDub --list-devices
 
+      # The microphone-permission probe calls the Objective-C runtime through ctypes;
+      # make sure it returns a real status inside the frozen app.
+      - name: Diagnose (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          out=$(./dist/LiveDub.app/Contents/MacOS/LiveDub --diagnose)
+          echo "$out"
+          echo "$out" | grep -E "Mikrofon izni: (authorized|denied|restricted|not_determined)"
+
       # Users' Macs have no CA file where the frozen Python looks for one; hide the runner's
       # CA roots the same way and make sure TLS to the APIs still works (via certifi).
       - name: TLS check without system CA roots (macOS)

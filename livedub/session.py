@@ -12,6 +12,7 @@ import numpy as np
 
 from .audio.capture import open_capture
 from .audio.devices import (
+    IS_MAC,
     IS_WINDOWS,
     SYSTEM_LOOPBACK_ID,
     SYSTEM_SOURCE,
@@ -21,8 +22,10 @@ from .audio.devices import (
     feedback_risk,
     find_output,
     find_source,
+    physical_output,
     process_loopback_supported,
 )
+from .audio.macos import microphone_permission
 from .audio.player import Player
 from .audio.util import StreamResampler, rms_dbfs
 from .config import Settings
@@ -38,6 +41,28 @@ DEFAULT_MIC = Device("", "default microphone", "input")
 
 SWITCH_NOTE = ("Kaynak ve çıkış aynı cihaz: dublaj geri karışıp çeviriyi döngüye sokmasın diye "
                "'Tüm sistem sesi (dublaj hariç)' yakalanıyor.")
+
+# Warn when the source has delivered nothing but exact digital silence for this long.
+SILENCE_WARN_S = 6.0
+MAC_PERMISSION_OFF = ("LiveDub'ın mikrofon izni kapalı. macOS bu yüzden BlackHole dahil tüm girişlerden yalnızca "
+                      "sessizlik veriyor. Sistem Ayarları › Gizlilik ve Güvenlik › Mikrofon › LiveDub'ı açın ve "
+                      "uygulamayı yeniden başlatın.")
+
+
+def silence_hint(source: Device | None, permission: str | None) -> str:
+    if permission in ("denied", "restricted"):
+        return MAC_PERMISSION_OFF
+    if source is not None and source.kind == "loopback":
+        return "Kaynaktan henüz ses gelmiyor. Çevrilecek bir video ya da ses oynatın."
+    if source is not None and source.virtual:
+        if IS_MAC:
+            return (f"{source.name} üzerinden hiç ses gelmiyor. Mac'in ses çıkışını {source.name} yapın "
+                    "(Sistem Ayarları › Ses › Çıkış) ve bir şey oynatın. Sürüyorsa: Sistem Ayarları › "
+                    "Gizlilik ve Güvenlik › Mikrofon › LiveDub açık olmalı.")
+        return (f"{source.name} üzerinden hiç ses gelmiyor. Çevrilecek uygulamanın çıkışını bu sanal kabloya "
+                "yönlendirin ve bir şey oynatın.")
+    return ("Mikrofondan hiç ses gelmiyor (tam sessizlik). Mikrofon sessize alınmış ya da uygulamanın "
+            "mikrofon izni kapalı olabilir.")
 
 
 def plan_input(mode: str, source: Device | None, output: Device | None) -> tuple[Device | None, bool, str | None]:
@@ -117,7 +142,8 @@ class DubSession:
             com_uninit()
             self.emit("stopped")
 
-    def _resolve_devices(self) -> tuple[Device | None, Device | None, bool, str | None]:
+    def _resolve_devices(self) -> tuple[Device | None, Device | None, bool, list[str]]:
+        """Returns (source, device to play the dub on or None for the default, guard, notices)."""
         s = self.s
         source = find_source(s.source_device) if s.source_device else None
         if s.source_device and source is None:
@@ -125,8 +151,19 @@ class DubSession:
         output = find_output(s.output_device)
         if s.output_device and output is None:
             raise FatalEngineError("Seçili çıkış cihazı bulunamadı. Cihaz listesini yenileyin.")
+        notes: list[str] = []
+        play_on = output if s.output_device else None
+        # Routing system audio into BlackHole / VB-CABLE makes the cable the system default output;
+        # playing the dub there would be inaudible and loop straight back into the capture.
+        if not s.output_device and output is not None and output.virtual:
+            fallback = physical_output()
+            if fallback is not None:
+                notes.append(f"Varsayılan çıkış bir sanal kablo ({output.name}); dublaj {fallback.name} üzerinden çalınıyor.")
+                output = play_on = fallback
         source, guard, note = plan_input(s.feedback_guard, source, output)
-        return source, output, guard, note
+        if note:
+            notes.append(note)
+        return source, play_on, guard, notes
 
     async def _main(self) -> None:
         s = self.s
@@ -134,7 +171,7 @@ class DubSession:
         self._loop = loop
         self._stop_event = asyncio.Event()
 
-        source, output, guard, note = self._resolve_devices()
+        source, play_on, guard, notes = self._resolve_devices()
         # System-audio sources: the original already plays from its own app, so "original volume"
         # turns those apps down in the Windows mixer instead of mixing a copy into our output.
         ducker = None
@@ -144,14 +181,14 @@ class DubSession:
             recover()
             ducker = OriginalDucker(s.original_volume)
             self._ducker = ducker
-        player = Player(output if s.output_device else None, s.dub_volume,
-                        0.0 if ducker else s.original_volume, s.duck_level)
+        player = Player(play_on, s.dub_volume, 0.0 if ducker else s.original_volume, s.duck_level)
         engine = None if self._test_mode else ENGINES[s.engine](s, player, self.emit)
         engine_rate = engine.input_rate if engine else 24000
         audio_q: asyncio.Queue[np.ndarray] = asyncio.Queue(maxsize=QUEUE_MAX_BLOCKS)
 
         resampler: StreamResampler | None = None
         level = {"at": 0.0, "peak": -120.0}
+        activity = {"heard": False}  # set once the source delivers anything but digital silence
 
         def push(block: np.ndarray) -> None:
             if audio_q.full():
@@ -163,6 +200,8 @@ class DubSession:
             if ducker is not None and ducker.gain != 1.0:
                 block = block * ducker.gain  # undo the mixer turn-down for the translator
             now = time.monotonic()
+            if not activity["heard"] and len(block) and float(np.max(np.abs(block))) > 1e-6:
+                activity["heard"] = True
             level["peak"] = max(level["peak"], rms_dbfs(block))
             if now - level["at"] >= LEVEL_INTERVAL_S:
                 self.emit("level", db=level["peak"])
@@ -196,11 +235,17 @@ class DubSession:
             capture.start()
             try:
                 self.emit("running", guard=guard, output_rate=player.rate, input_rate=capture.rate)
-                if note:
-                    self.emit("notice", text=note)
-                elif guard and s.feedback_guard == "auto":
+                for text in notes:
+                    self.emit("notice", text=text)
+                if guard and s.feedback_guard == "auto":
                     self.emit("notice", text="Geri besleme koruması açık: dublaj çalarken giriş susturuluyor.")
-                await self._run_until_stopped(engine, audio_q, player)
+                permission = microphone_permission() if IS_MAC else None
+                monitor = asyncio.create_task(self._watch_input(source, permission, activity))
+                try:
+                    await self._run_until_stopped(engine, audio_q, player)
+                finally:
+                    monitor.cancel()
+                    await asyncio.gather(monitor, return_exceptions=True)
             finally:
                 capture.stop()
         finally:
@@ -232,6 +277,24 @@ class DubSession:
             for task in (main, stopper, stats):
                 task.cancel()
             await asyncio.gather(main, stopper, stats, return_exceptions=True)
+
+    async def _watch_input(self, source: Device | None, permission: str | None, activity: dict) -> None:
+        """Explain a silent source instead of leaving the user staring at an empty meter.
+
+        macOS answers a missing microphone permission, or a BlackHole nothing is routed into,
+        with digital silence rather than an error.
+        """
+        if permission in ("denied", "restricted"):
+            self.emit("input_silent", text=MAC_PERMISSION_OFF)
+        started = time.monotonic()
+        warned = False
+        while not activity["heard"]:
+            if not warned and time.monotonic() - started > SILENCE_WARN_S:
+                self.emit("input_silent", text=silence_hint(source, permission))
+                warned = True
+            await asyncio.sleep(0.25)
+        if warned or permission in ("denied", "restricted"):
+            self.emit("input_ok")
 
     async def _report_backlog(self, player: Player) -> None:
         while True:

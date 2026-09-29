@@ -10,6 +10,7 @@ def main() -> int:
     parser.add_argument("--headless", action="store_true", help="arayüz olmadan terminalde çalıştır")
     parser.add_argument("--test-audio", action="store_true", help="API kullanmadan cihazları test et (bip + giriş seviyesi)")
     parser.add_argument("--check-connection", action="store_true", help="Gemini/OpenAI sunucularına güvenli bağlantıyı test et")
+    parser.add_argument("--diagnose", action="store_true", help="izinleri ve ses cihazlarını göster")
     parser.add_argument("--engine", choices=["gemini", "translate", "realtime", "cascade"])
     parser.add_argument("--source", help="kaynak cihaz id'si (--list-devices çıktısından)")
     parser.add_argument("--output", help="çıkış cihazı id'si")
@@ -20,6 +21,10 @@ def main() -> int:
     if sys.stdout and hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+    if args.diagnose:
+        from .cli import diagnose
+
+        return diagnose()
     if args.check_connection:
         from .cli import check_connection
 

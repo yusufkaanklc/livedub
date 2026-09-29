@@ -151,6 +151,18 @@ def default_output() -> Device | None:
         return None
 
 
+_HEADPHONE_HINTS = ("headphone", "kulaklık", "airpods", "buds", "earphone", "ear ")
+
+
+def physical_output() -> Device | None:
+    """A real output to play the dub on: headphones if connected, otherwise the first speaker."""
+    candidates = [d for d in list_outputs() if not d.virtual and not any(h in _norm(d.name) for h in _MULTI_HINTS)]
+    for dev in candidates:
+        if any(h in _norm(dev.name) for h in _HEADPHONE_HINTS):
+            return dev
+    return candidates[0] if candidates else None
+
+
 def find_source(device_id: str) -> Device | None:
     if not device_id:
         return None

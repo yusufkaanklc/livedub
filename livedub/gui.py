@@ -554,6 +554,9 @@ class MainWindow(QMainWindow):
         if IS_WINDOWS and source.kind == "loopback":
             hints.append("ℹ Orijinal ses: çalışırken diğer uygulamalar bu seviyeye kısılır (%0 = yalnızca dublaj duyulur), "
                          "çeviri etkilenmez; durdurunca sesler eski hâline döner.")
+        if IS_MAC and source.virtual:
+            hints.append(f"ℹ Mac'in ses çıkışı {source.name} olmalı (Sistem Ayarları › Ses › Çıkış). LiveDub'ın Çıkış'ı "
+                         "hoparlör ya da kulaklık olmalı. Orijinali de duymak için 'Orijinal ses' kaydırıcısını açın.")
         if IS_MAC and not any(d.virtual for d in self._sources):
             hints.append("ℹ macOS'ta sistem sesini (YouTube, Zoom…) çevirmek için ücretsiz BlackHole sürücüsünü kurun (README).")
         self.hint.setText("\n".join(hints))
@@ -627,6 +630,11 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"⚠ {data['text']}", 10000)
         elif kind == "notice":
             self.statusBar().showMessage(f"ℹ {data['text']}", 15000)
+        elif kind == "input_silent":
+            self.hint.setText(f"⚠ {data['text']}")
+            self.hint.setVisible(True)
+        elif kind == "input_ok":
+            self._update_hints()
         elif kind == "fatal":
             QMessageBox.warning(self, "LiveDub", data["text"])
         elif kind == "stopped":
@@ -634,6 +642,7 @@ class MainWindow(QMainWindow):
             self._set_running(False)
             self.state_label.setText("Durduruldu")
             self.backlog_label.setText("Kuyruk: –")
+            self._update_hints()  # drop a silent-input warning from the finished run
 
     def closeEvent(self, event) -> None:
         self._save()

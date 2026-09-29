@@ -52,6 +52,24 @@ async def _check_connection() -> int:
     return 1 if failed else 0
 
 
+def diagnose() -> int:
+    """Print what LiveDub sees: platform, macOS microphone permission, default devices."""
+    import platform
+
+    from .audio.devices import default_output, physical_output
+    from .audio.macos import microphone_permission
+
+    print(f"Sistem: {platform.system()} {platform.release()} ({platform.machine()})")
+    if platform.system() == "Darwin":
+        print(f"Mikrofon izni: {microphone_permission() or 'okunamadı'}")
+    default = default_output()
+    print(f"Varsayılan çıkış: {default.name if default else '-'}")
+    fallback = physical_output()
+    print(f"Gerçek hoparlör/kulaklık: {fallback.name if fallback else '-'}")
+    list_devices()
+    return 0
+
+
 def check_connection() -> int:
     import asyncio
 
@@ -84,7 +102,7 @@ def run(args) -> int:
             print(f"\n<< {data['text']}")
         elif kind == "latency":
             print(f"   [gecikme {data['ms']} ms]")
-        elif kind in ("status", "error", "notice"):
+        elif kind in ("status", "error", "notice", "input_silent"):
             print(f"\n[{kind}] {data['text']}")
         elif kind == "fatal":
             print(f"\n[HATA] {data['text']}")
