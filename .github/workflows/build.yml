@@ -41,6 +41,23 @@ jobs:
         if: runner.os == 'macOS'
         run: ./dist/LiveDub.app/Contents/MacOS/LiveDub --list-devices
 
+      # Users' Macs have no CA file where the frozen Python looks for one; hide the runner's
+      # CA roots the same way and make sure TLS to the APIs still works (via certifi).
+      - name: TLS check without system CA roots (macOS)
+        if: runner.os == 'macOS'
+        env:
+          SSL_CERT_FILE: /nonexistent/cert.pem
+          SSL_CERT_DIR: /nonexistent
+        run: |
+          python -c "import ssl; print('system CA roots visible:', ssl.create_default_context().cert_store_stats()['x509_ca'])"
+          ./dist/LiveDub.app/Contents/MacOS/LiveDub --check-connection
+
+      - name: TLS check (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $p = Start-Process -FilePath dist\LiveDub\LiveDub.exe -ArgumentList "--check-connection" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "connection check failed" }
+
       - name: Zip (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/LiveDub -DestinationPath LiveDub-Windows.zip

@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import ssl
 import time
 from typing import Awaitable, Callable
 
+import certifi
 import numpy as np
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed, InvalidStatus
@@ -90,6 +92,11 @@ class Engine:
                 if code in (1007, 1008) or any(tag in low for tag in PERMANENT_CLOSE_REASONS):
                     raise FatalEngineError(f"{provider} oturumu reddetti: {reason or code}") from exc
                 self.emit("error", text=f"Bağlantı koptu, yeniden bağlanılıyor: {reason or exc}")
+            except ssl.SSLCertVerificationError as exc:
+                # Retrying cannot fix a trust problem (missing CA roots, or an HTTPS-inspecting
+                # antivirus/proxy whose certificate is not trusted).
+                raise FatalEngineError(f"{provider} sunucusunun SSL sertifikası doğrulanamadı: {exc.verify_message}. "
+                                       "Antivirüs/VPN HTTPS denetimi yapıyorsa kapatmayı deneyin.") from exc
             except (OSError, asyncio.TimeoutError) as exc:
                 self.emit("error", text=f"Bağlantı kurulamadı: {exc or type(exc).__name__}")
             stale = True
@@ -99,8 +106,21 @@ class Engine:
             delay = min(delay * 2, 15.0)
 
 
+def _tls_context() -> ssl.SSLContext:
+    # Python on macOS does not read the Keychain: it looks for a CA file at a path baked in on
+    # the build machine, which does not exist on users' Macs, so every TLS handshake fails with
+    # CERTIFICATE_VERIFY_FAILED. Trust certifi's bundle on top of whatever the system provides.
+    context = ssl.create_default_context()
+    context.load_verify_locations(certifi.where())
+    return context
+
+
+TLS_CONTEXT = _tls_context()
+
+
 def ws_connect(url: str, headers: dict[str, str]):
-    return connect(url, additional_headers=headers, max_size=None, open_timeout=15, ping_interval=20, ping_timeout=20)
+    return connect(url, additional_headers=headers, ssl=TLS_CONTEXT if url.startswith("wss://") else None,
+                   max_size=None, open_timeout=15, ping_interval=20, ping_timeout=20)
 
 
 def drain(queue: asyncio.Queue) -> None:

@@ -22,6 +22,42 @@ def list_devices() -> None:
         print(f"  {dev.id!r:60}  {dev.name}{mark}")
 
 
+async def _check_connection() -> int:
+    import asyncio
+    import ssl
+
+    from websockets.exceptions import ConnectionClosed, InvalidStatus
+
+    from .engines.base import ws_connect
+    from .engines.gemini_translate import URL as GEMINI_URL
+
+    targets = [
+        ("Gemini", GEMINI_URL, {"x-goog-api-key": "connection-check"}),
+        ("OpenAI", "wss://api.openai.com/v1/realtime?model=gpt-realtime-1.5", {"Authorization": "Bearer connection-check"}),
+    ]
+    failed = False
+    for name, url, headers in targets:
+        try:
+            async with ws_connect(url, headers) as ws:
+                await ws.send('{"setup": {"model": "models/connection-check"}}')
+                await asyncio.wait_for(ws.recv(), 10)
+            result = "güvenli bağlantı kuruldu"
+        except (ConnectionClosed, InvalidStatus):
+            result = "güvenli bağlantı kuruldu (deneme anahtarı beklendiği gibi reddedildi)"
+        except ssl.SSLError as exc:
+            result, failed = f"SSL HATASI: {exc}", True
+        except (OSError, asyncio.TimeoutError) as exc:
+            result, failed = f"BAĞLANTI HATASI: {exc or type(exc).__name__}", True
+        print(f"{name}: {result}")
+    return 1 if failed else 0
+
+
+def check_connection() -> int:
+    import asyncio
+
+    return asyncio.run(_check_connection())
+
+
 def run(args) -> int:
     settings = Settings.load()
     overrides = {
