@@ -30,6 +30,17 @@ jobs:
       - name: Build
         run: pyinstaller livedub.spec --noconfirm
 
+      # The frozen app must at least start and enumerate audio devices.
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $p = Start-Process -FilePath dist\LiveDub\LiveDub.exe -ArgumentList "--list-devices" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "LiveDub.exe exited with $($p.ExitCode)" }
+
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: ./dist/LiveDub.app/Contents/MacOS/LiveDub --list-devices
+
       - name: Zip (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/LiveDub -DestinationPath LiveDub-Windows.zip
