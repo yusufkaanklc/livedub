@@ -1,178 +1,194 @@
-# LiveDub — Canlı Çeviri ve Dublaj (Windows + macOS)
+# LiveDub — Real-time translation and dubbing (Windows + macOS)
 
-Bilgisayarda çalan sesi (YouTube, film, yayın, Zoom…) ya da mikrofonu **anlık olarak çevirir ve
-seslendirir**. Çeviri, konuşma devam ederken akış hâlinde üretilir ve seçtiğiniz çıkışa (hoparlör,
-kulaklık ya da toplantı uygulamasına giden sanal kablo) çalınır.
+**English** · [Türkçe](README.tr.md)
 
-## Motorlar
+LiveDub **translates and voices** whatever your computer is playing (YouTube, films, streams, Zoom…)
+or your own microphone, **while the speaker is still talking**. The translation is streamed as it is
+produced and played to the output you pick: speakers, headphones, or a virtual cable that goes into
+your meeting app.
 
-| Motor | Nasıl çalışır | Gecikme | Çıkış dilleri | Gereken anahtar |
+> The app's interface is currently in Turkish. Labels below are quoted as they appear in the app,
+> with an English gloss.
+
+## Engines
+
+| Engine | How it works | Latency | Output languages | Keys needed |
 |---|---|---|---|---|
-| **Gemini Live Translate** (`gemini-3.5-live-translate-preview`) — varsayılan | Konuşmacı konuşurken eşzamanlı çevirir, ses tonunu konuşmacıya uyarlar, zaten hedef dilde olan konuşmayı tekrar etmez | En düşük (konuşmayla birlikte akar) | 70+ dil, **Türkçe dahil** | Gemini ([ücretsiz al](https://aistudio.google.com/apikey)) |
-| **OpenAI Realtime Translate** (`gpt-realtime-translate`) | Konuşmacı konuşurken eşzamanlı çevirir, ses tonunu konuşmacıya uyarlar | En düşük (konuşmayla birlikte akar) | en, es, pt, fr, ja, ru, zh, de, ko, hi, id, vi, it — **Türkçe yok** | OpenAI |
-| **OpenAI Realtime GPT** (`gpt-realtime-1.5` vb.) | Tercüman olarak yönlendirilmiş konuşma modeli; her duraksamada çevirir | Düşük (duraksamadan sonra) | Tüm diller, **Türkçe dahil** | OpenAI |
-| **Kaskad** | Deepgram canlı STT → OpenAI/DeepL çeviri → OpenAI/ElevenLabs TTS | Orta (cümle sonundan sonra) | Tüm diller, istediğiniz ses (ElevenLabs) | Deepgram + OpenAI/DeepL + OpenAI/ElevenLabs |
+| **Gemini Live Translate** (`gemini-3.5-live-translate-preview`) — default | Simultaneous translation while the speaker talks; adapts the voice to the speaker and doesn't repeat speech that is already in the target language | Lowest (flows with the speech) | 70+ languages, **including Turkish** | Gemini ([get one free](https://aistudio.google.com/apikey)) |
+| **OpenAI Realtime Translate** (`gpt-realtime-translate`) | Simultaneous translation while the speaker talks; adapts the voice to the speaker | Lowest (flows with the speech) | en, es, pt, fr, ja, ru, zh, de, ko, hi, id, vi, it — **no Turkish** | OpenAI |
+| **OpenAI Realtime GPT** (`gpt-realtime-1.5` etc.) | A speech model prompted as an interpreter; translates at every pause | Low (after a pause) | All languages, **including Turkish** | OpenAI |
+| **Cascade** | Deepgram live STT → OpenAI/DeepL translation → OpenAI/ElevenLabs TTS | Medium (after the end of a sentence) | All languages, any voice you like (ElevenLabs) | Deepgram + OpenAI/DeepL + OpenAI/ElevenLabs |
 
-Özet: her yönde (Türkçeye ve Türkçeden) varsayılan motor **Gemini Live Translate**: eşzamanlı ve en
-ucuzu. Ücretsiz katmanda ses girişi bedava, çeviri sesi ~0,018 $/dk, yani saatte ~1 $. Ücretsiz
-katmanda gönderilen içerik Google tarafından ürün geliştirmede kullanılabilir. Karşılaştırma için OpenAI
-Realtime Translate 0,034 $/dk'dır. Özel ses ya da klon ses istiyorsanız *Kaskad* motorunu seçin.
+In short: in both directions (into and out of Turkish) the default engine is **Gemini Live
+Translate** — simultaneous and the cheapest. On the free tier audio input is free and translated audio
+costs about $0.018/min, roughly $1 an hour. On the free tier, content you send may be used by Google to
+improve its products. For comparison, OpenAI Realtime Translate is $0.034/min. If you want a custom or
+cloned voice, pick *Cascade*.
 
-Fiyatlar Eylül 2026'daki resmi fiyat sayfalarından alınmıştır.
+Prices are from the official pricing pages as of September 2026.
 
-Gecikmeyi düşüren ayrıntılar:
-- Ses 20 ms'lik bloklarla yakalanır, 40 ms'lik paketlerle WebSocket üzerinden akıtılır.
-- Realtime GPT'de dublaj yeni konuşma başlayınca **kesilmez**; yanıtlar sıraya alınır. Kesintisiz
-  konuşmada (video, yayın) en geç *En uzun parça* süresinde (varsayılan 7 sn) çeviri tetiklenir.
-- Eski konuşma öğeleri silinir; oturum uzadıkça maliyet ve gecikme artmaz.
-- Kaskad'da çeviri token token akar; ilk cümle bittiği anda TTS başlar. Kuyruk birikirse konuşma
-  otomatik hızlanır.
-- Bağlantı düşerse (veya sunucu oturum süresi dolarsa) otomatik yeniden bağlanır.
-- Alt çubukta **Gecikme** (konuşma bitişi/başlangıcı → ilk dublaj sesi) ve **Kuyruk** (çalınmayı
-  bekleyen dublaj) canlı gösterilir.
+What keeps latency down:
+- Audio is captured in 20 ms blocks and streamed over WebSocket in 40 ms packets.
+- In Realtime GPT the dub is **not cut off** when new speech starts; responses are queued. In continuous
+  speech (videos, streams) a translation is triggered at the latest after *Longest chunk* seconds
+  (7 s by default).
+- Old conversation items are deleted, so cost and latency don't grow as the session gets longer.
+- In Cascade the translation streams token by token and TTS starts as soon as the first sentence is done.
+  If the queue builds up, playback speeds up automatically.
+- If the connection drops (or the server session expires), it reconnects automatically.
+- The status bar shows live **Latency** (end/start of speech → first dubbed audio) and **Queue**
+  (dubbed audio waiting to be played).
 
-## Kurulum
+## Install
 
-LiveDub normal bir masaüstü uygulamasıdır. Python gerekmez.
+LiveDub is a regular desktop app; you don't need Python to use it.
 
-- **Windows:** `dist/LiveDub/LiveDub.exe`. Klasörü istediğiniz yere taşıyabilirsiniz; `LiveDub.exe`
-  için bir masaüstü kısayolu oluşturun. Klasördeki `_internal` dosyaları uygulamanın parçasıdır.
-- **macOS:** `LiveDub.app` dosyasını *Uygulamalar* klasörüne sürükleyin. İlk açılışta mikrofon izni
-  sorulur. İmzasız olduğu için ilk seferde sağ tık → *Aç* deyin.
+There is no tagged release yet. To get a build, run the **build** workflow on GitHub
+(*Actions → build → Run workflow*, see [.github/workflows/build.yml](.github/workflows/build.yml)) and
+download the Windows and macOS zips from the run's *Artifacts*.
 
-Uygulamayı kendiniz derlemek için:
+- **Windows:** unzip and run `LiveDub/LiveDub.exe`. You can move the folder anywhere and create a desktop
+  shortcut to `LiveDub.exe`. The `_internal` files in the folder are part of the app.
+- **macOS:** drag `LiveDub.app` into *Applications*. It asks for microphone permission on first launch.
+  The build is unsigned, so the first time right-click → *Open*. The Mac build is for Apple Silicon.
+
+To build it yourself:
 ```bash
 pip install -r requirements-build.txt
 pyinstaller livedub.spec --noconfirm
 ```
-Her platform kendi üzerinde derlenir: Windows'ta exe, Mac'te .app çıkar. Mac'iniz yoksa projeyi
-GitHub'a yükleyip *Actions → build → Run workflow* çalıştırın
-([.github/workflows/build.yml](.github/workflows/build.yml)). İki platformun zip'leri çalışmanın
-*Artifacts* bölümünden indirilir. Mac sürümü Apple Silicon içindir. Başkalarına dağıtırken Apple
-geliştirici hesabıyla imzalayıp notarize etmeniz gerekir.
+Each platform builds on itself: an exe on Windows, an .app on a Mac. To distribute the Mac build to
+others you need to sign and notarize it with an Apple developer account.
 
-### Geliştirici modu (kaynak koddan)
+### Developer mode (from source)
 
-Kod üzerinde çalışırken derleme beklememek için `run_windows.bat` / `run_macos.command` betikleri
-var. Bunlar Python 3.10+ sanal ortamını kurup uygulamayı kaynak koddan başlatır. Normal kullanım
-için gerekli değildir.
+To skip rebuilding while you work on the code, `run_windows.bat` / `run_macos.command` set up a
+Python 3.10+ virtual environment and start the app from source. You don't need them for normal use.
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt      # Windows: .venv\Scripts\pip ...
 .venv/bin/python -m livedub
 ```
 
-Uygulamada **Ayarlar → API anahtarları** bölümüne anahtarınızı girin (ya da `GEMINI_API_KEY`, `OPENAI_API_KEY` vb.
-ortam değişkenlerini tanımlayın). API gerektirmeyen **Ses testi** düğmesi çıkışta bip çalar ve giriş
-seviyesini gösterir; cihaz kurulumunu doğrulamak için önce onu kullanın.
+Enter your key under **Ayarlar → API anahtarları** (*Settings → API keys*), or set environment variables
+such as `GEMINI_API_KEY` and `OPENAI_API_KEY`. The **Ses testi** (*Audio test*) button needs no API: it
+plays a beep on the output and shows the input level. Use it first to check your device setup.
 
-## Kullanım senaryoları
+## Use cases
 
-### 1) Windows'ta video / yayın dublajı
+### 1) Dubbing videos and streams on Windows
 
-Kaynak = `Sistem sesi: tüm uygulamalar, dublaj hariç`, Çıkış = kulaklığınız ya da hoparlörünüz. Kurulum
-gerekmez. LiveDub çalan her şeyi yakalar ama kendi dublajını hariç tutar (Windows 10 build 20348+ /
-Windows 11).
+Source = `Sistem sesi: tüm uygulamalar, dublaj hariç` (*System audio: all apps, excluding the dub*),
+Output = your headphones or speakers. Nothing to install. LiveDub captures everything that plays but
+leaves out its own dub (Windows 10 build 20348+ / Windows 11).
 
-**Orijinal ses** kaydırıcısı bu modda diğer uygulamaların sesini ayarlar:
-- **%0:** yalnızca dublajı duyarsınız. Diğer uygulamalar %1'e kısılır, LiveDub yakaladığı sesi aynı oranda
-  yükselttiği için çeviri etkilenmez. Windows, uygulama sesini kısılmış hâliyle verdiği için tamamen
-  susturmak mümkün değil; susturulursa çevrilecek ses de kaybolur.
-- **%100:** orijinal ile dublajı birlikte duyarsınız.
-- Durdurunca sesler eski hâline döner. Uygulama çökse bile bir sonraki açılışta eski seviyeler geri
-  yüklenir.
+In this mode the **Orijinal ses** (*Original audio*) slider sets the volume of the other apps:
+- **0%:** you only hear the dub. Other apps are turned down to 1%, and LiveDub boosts what it captures
+  by the same amount, so the translation isn't affected. Windows hands over app audio after the volume
+  is applied, so apps can't be fully muted: muting them would also silence what needs translating.
+- **100%:** you hear the original and the dub together.
+- When you stop, volumes go back to how they were. Even if the app crashes, the old levels are restored
+  on the next launch.
 
-Dublaj yakalanan sese geri karışırsa model kendi sesini tekrar çevirir ve aynı cümleleri döngü hâlinde
-tekrarlar. Bu yüzden `Sistem sesi: <cihaz>` kaynağı çıkışla aynı cihazsa uygulama otomatik olarak
-"dublaj hariç" yakalamaya geçer.
+If the dub leaks back into the captured audio, the model translates its own voice and repeats the same
+sentences in a loop. That's why, when a `Sistem sesi: <device>` source is the same device as the
+output, LiveDub switches to "excluding the dub" capture automatically.
 
-**Alternatif, sanal kablo ile (uygulamaların sesine dokunmadan):**
-1. Ücretsiz [VB-CABLE](https://vb-audio.com/Cable/) kurun.
-2. *Ayarlar → Sistem → Ses → Uygulama ses düzeyi ve cihaz tercihleri* bölümünden tarayıcının/oynatıcının
-   çıkışını **CABLE Input** yapın.
-3. LiveDub'da Kaynak = `Sanal kablo: CABLE Output`, Çıkış = hoparlörünüz.
-4. Orijinali arkada kısık duymak isterseniz **Orijinal ses** kaydırıcısını açın; dublaj konuşurken
-   orijinal otomatik kısılır (ducking).
+**Alternative, with a virtual cable (without touching app volumes):**
+1. Install the free [VB-CABLE](https://vb-audio.com/Cable/).
+2. Under *Settings → System → Sound → Volume mixer / app volume and device preferences*, set your
+   browser's or player's output to **CABLE Input**.
+3. In LiveDub: Source = `Sanal kablo: CABLE Output` (*Virtual cable*), Output = your speakers.
+4. To hear the original quietly in the background, raise **Orijinal ses**; it ducks automatically
+   while the dub is speaking.
 
-### 2) macOS'ta sistem sesi dublajı
+### 2) Dubbing system audio on macOS
 
-macOS, uygulamaların sistem sesini doğrudan yakalamasına izin vermez; ücretsiz bir sanal kablo gerekir:
-1. [BlackHole 2ch](https://existential.audio/blackhole/) kurun (`brew install blackhole-2ch`) ve Mac'i yeniden başlatın.
-2. **Sistem Ayarları › Ses › Çıkış** bölümünde **BlackHole 2ch**'i seçin. Bu adım şart: kurmak tek başına
-   yetmez, sistem sesi bu kabloya gitmezse LiveDub'a hiç ses gelmez.
-3. LiveDub'da Kaynak = `Sanal kablo: BlackHole 2ch`. Çıkış = **MacBook hoparlörü / kulaklık**. Çıkışı
-   "Varsayılan" bırakırsanız ve varsayılan BlackHole ise LiveDub dublajı otomatik olarak gerçek hoparlöre
-   ya da kulaklığa yönlendirir. Multi-Output cihazı seçmeyin; dublaj tekrar BlackHole'a girer.
-4. **Orijinal ses** kaydırıcısı: %0 = yalnızca dublaj, yükseltirseniz orijinali de duyarsınız.
-5. İlk başlatmada macOS mikrofon izni ister. BlackHole da bir "mikrofon" sayılır, izin vermeniz gerekir.
-   Reddettiyseniz: **Sistem Ayarları › Gizlilik ve Güvenlik › Mikrofon › LiveDub**'ı açıp uygulamayı yeniden
-   başlatın.
+macOS doesn't let apps capture system audio directly; you need a free virtual cable:
+1. Install [BlackHole 2ch](https://existential.audio/blackhole/) (`brew install blackhole-2ch`) and restart the Mac.
+2. In **System Settings › Sound › Output**, select **BlackHole 2ch**. This step is required: installing it
+   isn't enough, and if system audio doesn't go to the cable LiveDub receives nothing.
+3. In LiveDub: Source = `Sanal kablo: BlackHole 2ch`, Output = **MacBook speakers / headphones**. If you
+   leave the output on "Default" and the default is BlackHole, LiveDub routes the dub to the real
+   speakers or headphones automatically. Don't pick a Multi-Output device; the dub would go back into
+   BlackHole.
+4. **Orijinal ses** slider: 0% = dub only; raise it to hear the original too.
+5. On first start macOS asks for microphone permission. BlackHole counts as a "microphone", so you need
+   to allow it. If you denied it: turn on **System Settings › Privacy & Security › Microphone › LiveDub**
+   and restart the app.
 
-İşiniz bitince Mac'in çıkışını tekrar hoparlöre ya da kulaklığa alın. Birkaç saniye hiç ses gelmezse
-LiveDub nedenini arayüzde yazar (izin kapalı, kabloya ses gitmiyor vb.). Terminalde
-`/Applications/LiveDub.app/Contents/MacOS/LiveDub --diagnose` izin durumunu ve cihazları gösterir.
+When you're done, switch the Mac's output back to your speakers or headphones. If no audio arrives for a
+few seconds, LiveDub says why in the interface (permission off, nothing reaching the cable, etc.).
+In Terminal, `/Applications/LiveDub.app/Contents/MacOS/LiveDub --diagnose` shows the permission state
+and devices.
 
-### 3) Mikrofon → toplantıda çevrilmiş sesiniz (Zoom, Meet, Discord, Teams)
+### 3) Microphone → your translated voice in a meeting (Zoom, Meet, Discord, Teams)
 
-1. Kaynak = mikrofonunuz, hedef dil = karşı tarafın dili.
-2. Çıkış = **CABLE Input** (Windows) veya **BlackHole 2ch** (macOS).
-3. Toplantı uygulamasında mikrofon olarak **CABLE Output** / **BlackHole 2ch** seçin.
+1. Source = your microphone, target language = the other side's language.
+2. Output = **CABLE Input** (Windows) or **BlackHole 2ch** (macOS).
+3. In the meeting app, choose **CABLE Output** / **BlackHole 2ch** as the microphone.
 
-Türkçe konuşup İngilizce duyulmak için de *Gemini Live Translate* en hızlı ve en ucuz motordur.
+To speak Turkish and be heard in English, *Gemini Live Translate* is again the fastest and cheapest engine.
 
-### 4) Mikrofon → yanınızdaki kişiye hoparlörden
+### 4) Microphone → to the person next to you, through the speaker
 
-Kaynak = mikrofon, Çıkış = hoparlör. Mikrofon hoparlörü duyacağı için geri besleme koruması
-açılır: siz konuşursunuz, dublaj çalar, sonra tekrar konuşursunuz (sıralı konuşma).
+Source = microphone, Output = speaker. Since the microphone will hear the speaker, feedback protection
+kicks in: you speak, the dub plays, then you speak again (turn-taking).
 
-## Ayarlar hakkında
+## Settings
 
-- **Gürültü azaltma:** mikrofonda `near_field`/`far_field`, sistem sesinde kapalı bırakın.
-- **Sessizlik eşiği (Realtime GPT):** düşürmek (ör. 250 ms) gecikmeyi azaltır ama cümleleri bölebilir.
-- **Konuşma hızı:** Türkçe çeviriler genelde kaynaktan uzundur; 1.1–1.2x dublajın geride kalmasını önler.
-- **Kaskad + Deepgram:** otomatik dil algılama `nova-3` ile çalışır; belirli bir kaynak dil seçerseniz
-  o dili destekleyen modeli seçin (Türkçe kaynak için `nova-2` en garantisidir).
-- Model adları düzenlenebilir alanlardır; OpenAI yeni bir model yayınladığında kod değiştirmeden
-  kullanabilirsiniz.
+- **Noise reduction:** `near_field`/`far_field` for a microphone; leave it off for system audio.
+- **Silence threshold (Realtime GPT):** lowering it (e.g. 250 ms) reduces latency but can split sentences.
+- **Speech speed:** Turkish translations tend to be longer than the source; 1.1–1.2x keeps the dub from
+  falling behind.
+- **Cascade + Deepgram:** automatic language detection works with `nova-3`; if you pick a specific source
+  language, choose a model that supports it (`nova-2` is the safest for Turkish source audio).
+- Model names are editable fields, so you can use a new OpenAI model as soon as it ships, without
+  changing code.
 
-Ayarlar ve anahtarlar `~/.livedub/settings.json` dosyasında **düz metin** saklanır.
+Settings and keys are stored **in plain text** in `~/.livedub/settings.json`.
 
-## Terminal modu
+## Terminal mode
 
 ```bash
 python -m livedub --list-devices
-python -m livedub --test-audio --source "lb:{...}" --output "out:Hoparlör (Realtek(R) Audio)"
+python -m livedub --test-audio --source "lb:{...}" --output "out:Speakers (Realtek(R) Audio)"
 python -m livedub --headless --engine realtime --target tr --source "in:CABLE Output (VB-Audio Virtual Cable)"
 ```
 
-## Testler
+## Tests
 
 ```bash
 python tests/mock_engines.py
 ```
-Üç motoru da yerel sahte sunuculara karşı çalıştırır (API anahtarı ve ses cihazı gerekmez).
+Runs the engines against local fake servers (no API keys or audio devices needed).
 
-## Proje yapısı
+## Project layout
 
 ```
 livedub/
-  audio/devices.py     cihaz listeleme, geri besleme riski tespiti
-  audio/capture.py     mikrofon/sanal kablo (sounddevice) + Windows WASAPI loopback (soundcard)
-  audio/player.py      düşük gecikmeli çıkış, orijinal sesi karıştırma ve kısma
-  engines/             openai_translate.py, openai_realtime.py, cascade.py
-  session.py           yakala → motor → çal hattı (arka plan iş parçacığı + asyncio)
-  gui.py               PySide6 arayüz
-  cli.py               terminal modu
+  audio/devices.py     device listing, feedback-risk detection
+  audio/capture.py     microphone/virtual cable (sounddevice) + Windows WASAPI loopback (soundcard)
+  audio/player.py      low-latency output, mixing and ducking the original audio
+  engines/             gemini_translate.py, openai_translate.py, openai_realtime.py, cascade.py
+  session.py           capture → engine → playback pipeline (background thread + asyncio)
+  gui.py               PySide6 interface
+  cli.py               terminal mode
 ```
 
-## Sorun giderme
+## Troubleshooting
 
-- **Hiç ses gelmiyor:** *Ses testi* ile giriş çubuğunun hareket ettiğini doğrulayın. Windows'ta
-  loopback, uygulamalar *özel mod* (exclusive) kullanırken çalışmaz.
-- **Dublaj aynı cümleleri döngü hâlinde tekrarlıyor:** dublaj, yakalanan sese geri karışıyor. Windows'ta
-  kaynak olarak `Sistem sesi: tüm uygulamalar, dublaj hariç` seçin. macOS'ta çıkışın BlackHole'a
-  gitmediğinden emin olun.
-- **OpenAI Realtime Translate Türkçe konuşmuyor:** model Türkçe çıkış desteklemez; *Gemini Live Translate* seçin.
-- **Gemini "kota" hatası:** ücretsiz katmanın kullanım sınırı dolmuştur. Bir süre bekleyin ya da Google AI
-  Studio'da faturalandırmayı açın.
-- **"API anahtarı geçersiz":** anahtarı ve hesabınızda Realtime API erişimi olduğunu kontrol edin.
+- **No audio at all:** use *Ses testi* to check that the input meter moves. On Windows, loopback doesn't
+  work while apps use *exclusive mode*.
+- **The dub repeats the same sentences in a loop:** the dub is leaking back into the captured audio. On
+  Windows, choose `Sistem sesi: tüm uygulamalar, dublaj hariç` as the source. On macOS, make sure the
+  output isn't going to BlackHole.
+- **OpenAI Realtime Translate won't speak Turkish:** the model doesn't support Turkish output; pick
+  *Gemini Live Translate*.
+- **Gemini "quota" error:** you've hit the free tier's limit. Wait a while or enable billing in Google AI
+  Studio.
+- **"API key invalid":** check the key and that your account has Realtime API access.
+
+---
+
+Built by [Yusuf Kağan Kılıç](https://yusufkaanklc.dev/en/).
